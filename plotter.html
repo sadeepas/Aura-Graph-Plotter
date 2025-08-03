@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Aura Graph Plotter - Pro Tech</title>
+  
+  <!-- Core Libraries -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom@2.0.1/dist/chartjs-plugin-zoom.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-crosshair@3.0.1/dist/chartjs-plugin-crosshair.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/mathjs/13.2.0/math.js"></script>
+
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  
+  <!--  CSS for Theme -->
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap');
+    
+    body { 
+        font-family: 'Inter', sans-serif;
+        background-color: #0d1931; /* Slate 950 */
+    }
+
+    /* Keyframe Animations */
+    @keyframes spin3d { 0% { transform: rotateX(0deg) rotateY(0deg); } 100% { transform: rotateX(360deg) rotateY(360deg); } }
+    @keyframes pulse-glow { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: 0.8; transform: scale(1.05); } }
+    @keyframes fade-in-up { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+    @keyframes canvas-reveal { from { opacity: 0; transform: scale(0.98); } to { opacity: 1; transform: scale(1); } }
+    
+    .animate-in { animation: fade-in-up 0.6s ease-out both; }
+    .canvas-active { animation: canvas-reveal 0.8s ease-out both; }
+
+    /* Custom Scrollbar */
+    ::-webkit-scrollbar { width: 8px; } 
+    ::-webkit-scrollbar-track { background: #354764; } /* Slate 800 */
+    ::-webkit-scrollbar-thumb { background: #2e4d77; border-radius: 10px; } /* Slate 600 */
+    ::-webkit-scrollbar-thumb:hover { background: #64748b; } /* Slate 500 */
+    
+    /* Glassmorphism & Subtle Gradient Border */
+    .glass-container {
+        background: rgba(30, 41, 59, 0.7); /* slate-800 with transparency */
+        backdrop-filter: blur(16px);
+        -webkit-backdrop-filter: blur(16px);
+        border: 1px solid transparent;
+        background-clip: padding-box;
+        position: relative;
+    }
+    .gradient-border::before {
+        content: '';
+        position: absolute;
+        top: 0; right: 0; bottom: 0; left: 0;
+        z-index: -1;
+        margin: -1px;
+        border-radius: inherit;
+        background: linear-gradient(135deg, #0f2027, #2c5364);
+        background-size: 200% 200%;
+        animation: gradient-border 3s ease infinite;
+
+    }
+    
+    /* Input Glow on Focus */
+    .input-glow:focus {
+        box-shadow: 0 0 15px rgba(6, 182, 212, 0.3);
+    }
+
+    /* Cube spinner for loading screens */
+    .cube-spinner { width: 60px; height: 60px; position: relative; transform-style: preserve-3d; animation: spin3d 4s linear infinite; }
+    .cube-face { position: absolute; width: 60px; height: 60px; opacity: 0.85; border: 1px solid #530404be; }
+    .front { background-color: rgba(6, 182, 212, 0.3); transform: translateZ(30px); } 
+    .back { background-color: rgba(6, 182, 212, 0.3); transform: rotateY(180deg) translateZ(30px); } 
+    .right { background-color: rgba(6, 182, 212, 0.2); transform: rotateY(90deg) translateZ(30px); } 
+    .left { background-color: rgba(6, 182, 212, 0.2); transform: rotateY(-90deg) translateZ(30px); } 
+    .top { background-color: rgba(6, 182, 212, 0.25); transform: rotateX(90deg) translateZ(30px); } 
+    .bottom { background-color: rgba(6, 182, 212, 0.25); transform: rotateX(-90deg) translateZ(30px); }
+  </style>
+</head>
+
+<body class="text-slate-300 antialiased">
+
+  <!-- Startup Loading Screen -->
+  <div id="startupLoadingScreen" class="fixed inset-0 z-[100] flex flex-col items-center justify-center bg-slate-950 transition-opacity duration-700 ease-out">
+    <div class="cube-spinner !w-[80px] !h-[80px]">
+        <div class="cube-face !w-[80px] !h-[80px] front !translate-z-[40px]"></div><div class="cube-face !w-[80px] !h-[80px] back !-translate-z-[40px]"></div><div class="cube-face !w-[80px] !h-[80px] right !rotate-y-90 !translate-z-[40px]"></div><div class="cube-face !w-[80px] !h-[80px] left !-rotate-y-90 !translate-z-[40px]"></div><div class="cube-face !w-[80px] !h-[80px] top !rotate-x-90 !translate-z-[40px]"></div><div class="cube-face !w-[80px] !h-[80px] bottom !-rotate-x-90 !translate-z-[40px]"></div>
+    </div>
+    <p class="mt-10 text-2xl font-bold tracking-wider text-slate-200" style="animation: pulse-glow 2s ease-in-out infinite;">Initializing Plotter</p>
+  </div>
+  
+  <!-- Centered Modal Loading Screen -->
+  <div id="loadingScreen" class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/70 backdrop-blur-sm transition-opacity duration-300 ease-out opacity-0 pointer-events-none hidden">
+      <div id="loadingBox" class="flex flex-col items-center gap-6 p-8 rounded-2xl glass-container shadow-2xl transition-all duration-300 ease-out scale-95 opacity-0">
+          <div class="cube-spinner">
+            <div class="cube-face front"></div><div class="cube-face back"></div><div class="cube-face right"></div><div class="cube-face left"></div><div class="cube-face top"></div><div class="cube-face bottom"></div>
+          </div>
+          <p id="loadingText" class="text-lg font-semibold tracking-wide text-slate-200">Plotting...</p>
+      </div>
+  </div>
+  
+  <!-- Help Modal -->
+  <div id="helpModal" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-md transition-opacity duration-300 ease-out opacity-0 pointer-events-none hidden">
+      <div class="glass-container gradient-border rounded-2xl shadow-2xl max-w-3xl w-full transform transition-all duration-300 ease-out scale-95">
+          <div class="flex justify-between items-center p-4 border-b border-slate-700">
+              <h2 class="text-2xl font-bold text-cyan-400">Graph Plotter Guide</h2>
+              <button id="closeHelpBtn" class="text-slate-400 hover:text-white transition-colors text-2xl leading-none">×</button>
+          </div>
+          <div class="p-6 space-y-6 text-slate-300 max-h-[75vh] overflow-y-auto">
+              <!-- Help content remains the same -->
+              <div class="space-y-2">
+                  <h3 class="font-semibold text-lg text-cyan-400 flex items-center gap-2"><svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clip-rule="evenodd" /></svg>Getting Started</h3>
+                  <p>Enter a mathematical function and press **Plot Graph** or <kbd class="px-2 py-1 text-xs font-semibold text-slate-800 bg-slate-100 border border-slate-300 rounded-md">Enter</kbd>.</p>
+                  <ul class="list-disc list-inside pl-4 space-y-1">
+                      <li>For **Cartesian** plots, use `x` as the variable (e.g., `sin(x) * x`).</li>
+                      <li>For **Polar** plots, use `t` as the variable (e.g., `1 + cos(t)`).</li>
+                  </ul>
+              </div>
+              <div class="space-y-2">
+                  <h3 class="font-semibold text-lg text-cyan-400 flex items-center gap-2"><svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path d="M10 3.5a1.5 1.5 0 013 0V4a1 1 0 001 1h3a1 1 0 011 1v3a1 1 0 01-1 1h-1v1a1 1 0 01-1 1H6a1 1 0 01-1-1v-1H4a1 1 0 01-1-1V8a1 1 0 011-1h3a1 1 0 001-1v-.5z" /><path d="M4 11v1a1 1 0 001 1h2a1 1 0 001-1v-1H4zM8 11v1a1 1 0 001 1h2a1 1 0 001-1v-1H8zM12 11v1a1 1 0 001 1h2a1 1 0 001-1v-1h-4z" /></svg>Interactive Chart</h3>
+                   <ul class="list-disc list-inside pl-4 space-y-1">
+                      <li>**Zoom:** Use your mouse wheel or pinch-to-zoom on touch devices.</li>
+                      <li>**Pan:** Click and drag the chart to move it around.</li>
+                      <li>**Reset:** Double-click on the chart to reset the zoom and pan.</li>
+                  </ul>
+              </div>
+          </div>
+      </div>
+  </div>
+
+  <!-- Main Container -->
+  <div id="appContainer" class="relative max-w-7xl mx-auto p-4 sm:p-6 lg:p-8 opacity-0">
+    <div class="glass-container gradient-border rounded-3xl shadow-2xl shadow-black/50 p-6 md:p-8 space-y-8">
+
+        <header data-animate class="text-center">
+            <h1 class="text-4xl sm:text-5xl md:text-6xl font-black tracking-tighter text-slate-100">
+                Graph Plotter
+            </h1>
+        </header>
+
+        <div data-animate class="space-y-6">
+            <div class="flex justify-center bg-slate-900/50 p-1.5 rounded-xl border border-slate-700 w-fit mx-auto shadow-inner">
+                <label class="cursor-pointer"><input type="radio" name="plotType" value="cartesian" class="sr-only peer" checked><span class="px-6 py-2 rounded-lg transition-all duration-300 text-slate-400 peer-hover:text-white peer-checked:bg-cyan-600/50 peer-checked:text-white font-semibold">Cartesian</span></label>
+                <label class="cursor-pointer"><input type="radio" name="plotType" value="polar" class="sr-only peer"><span class="px-6 py-2 rounded-lg transition-all duration-300 text-slate-400 peer-hover:text-white peer-checked:bg-cyan-600/50 peer-checked:text-white font-semibold">Polar</span></label>
+            </div>
+            <div class="grid grid-cols-1 md:grid-cols-12 gap-4">
+                <input type="text" id="equation" placeholder="f(x) = sin(x) * x" class="md:col-span-6 w-full bg-slate-800 border border-slate-600 rounded-lg px-4 py-3 text-lg text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-slate-900 focus:ring-cyan-500 focus:border-cyan-500 transition-all duration-300 input-glow">
+                <select id="history" class="md:col-span-3 w-full bg-slate-800 border border-slate-600 rounded-lg px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-slate-900 focus:ring-cyan-500 transition-all duration-300 appearance-none bg-no-repeat bg-right" style="background-image: url('data:image/svg+xml;utf8,<svg fill="%2394a3b8" height="24" viewBox="0 0 24 24" width="24" xmlns="http://www.w3.org/2000/svg"><path d="M7 10l5 5 5-5z"/></svg>'); background-position: right 1rem center;"></select>
+                <button id="plotBtn" class="plot-btn group md:col-span-3">
+                    <span id="plotBtnText">Plot Graph</span>
+                    <svg id="plotBtnSpinner" class="animate-spin h-5 w-5 text-white hidden" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                </button>
+            </div>
+        </div>
+
+        <hr class="border-slate-700" data-animate>
+        
+        <div data-animate class="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <button id="clearBtn" class="control-btn group"><svg class="w-5 h-5 mr-2 text-slate-400 group-hover:text-red-400 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>Clear</button>
+            <button id="exportBtn" class="control-btn group"><svg class="w-5 h-5 mr-2 text-slate-400 group-hover:text-green-400 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"></path></svg>Export</button>
+            <button id="gridToggleBtn" class="control-btn group"><svg class="w-5 h-5 mr-2 text-slate-400 group-hover:text-blue-400 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6a2 2 0 012-2h12a2 2 0 012 2v12a2 2 0 01-2 2H6a2 2 0 01-2-2V6z"></path></svg>Grid</button>
+            <button id="helpBtn" class="control-btn group"><svg class="w-5 h-5 mr-2 text-slate-400 group-hover:text-yellow-400 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>Help</button>
+        </div>
+
+        <div data-animate class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <div id="rangeControls" class="main-container p-4 rounded-xl space-y-3">
+                <legend id="rangeLegend" class="font-semibold text-lg text-cyan-400">Cartesian Range</legend>
+                <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    <div class="flex flex-col"><label id="rangeLabel1" class="text-sm text-slate-400 mb-1">X-Min:</label><input type="number" id="xMin" value="-10" class="control-input"></div>
+                    <div class="flex flex-col"><label id="rangeLabel2" class="text-sm text-slate-400 mb-1">X-Max:</label><input type="number" id="xMax" value="10" class="control-input"></div>
+                    <div class="flex flex-col"><label id="rangeLabel3" class="text-sm text-slate-400 mb-1">Step:</label><input type="number" id="step" value="0.05" class="control-input"></div>
+                </div>
+            </div>
+            <div id="analysisControls" class="main-container p-4 rounded-xl flex flex-wrap items-center justify-center gap-3">
+                <button id="derivativeBtn" title="Plot the derivative" class="analysis-btn">f'(x)</button>
+                <button id="integralBtn" title="Plot the integral" class="analysis-btn">∫f(x)dx</button>
+                <button id="analyzeBtn" title="Find roots, extrema, and area" class="analysis-btn">Analyze</button>
+            </div>
+        </div>
+        
+        <hr class="border-slate-700" data-animate>
+        
+        <div data-animate id="resultsWrapper" class="main-container p-4 rounded-xl">
+            <h3 class="flex items-center gap-2 text-slate-400 font-semibold mb-2"><svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M12 7a1 1 0 110-2h5a1 1 0 011 1v5a1 1 0 11-2 0V8.414l-4.293 4.293a1 1 0 01-1.414 0L8 10.414l-4.293 4.293a1 1 0 01-1.414-1.414l5-5a1 1 0 011.414 0L12 11.586l3.293-3.293a1 1 0 010-1.414z" clip-rule="evenodd" /></svg>Stats & Analysis</h3>
+            <div id="results" class="text-sm whitespace-pre-wrap font-mono transition-all duration-500 min-h-[74px] text-slate-300"></div>
+        </div>
+
+        <div data-animate class="relative h-[500px] lg:h-[600px] main-container rounded-xl shadow-inner overflow-hidden">
+            <canvas id="graphCanvas"></canvas>
+        </div>
+    </div>
+  </div>
+  
+  <script>
+    // --- UI Element Selectors and State ---
+    const UI = { startupLoadingScreen: document.getElementById('startupLoadingScreen'), appContainer: document.getElementById('appContainer'), equation: document.getElementById('equation'), history: document.getElementById('history'), plotBtn: document.getElementById('plotBtn'), plotBtnText: document.getElementById('plotBtnText'), plotBtnSpinner: document.getElementById('plotBtnSpinner'), clearBtn: document.getElementById('clearBtn'), exportBtn: document.getElementById('exportBtn'), gridToggleBtn: document.getElementById('gridToggleBtn'), helpBtn: document.getElementById('helpBtn'), xMin: document.getElementById('xMin'), xMax: document.getElementById('xMax'), step: document.getElementById('step'), results: document.getElementById('results'), canvas: document.getElementById('graphCanvas'), plotTypeRadios: document.querySelectorAll('input[name="plotType"]'), rangeControls: document.getElementById('rangeControls'), rangeLegend: document.getElementById('rangeLegend'), rangeLabel1: document.getElementById('rangeLabel1'), rangeLabel2: document.getElementById('rangeLabel2'), rangeLabel3: document.getElementById('rangeLabel3'), analysisControls: document.getElementById('analysisControls'), loadingScreen: document.getElementById('loadingScreen'), loadingBox: document.getElementById('loadingBox'), loadingText: document.getElementById('loadingText'), helpModal: document.getElementById('helpModal'), closeHelpBtn: document.getElementById('closeHelpBtn'), derivativeBtn: document.getElementById('derivativeBtn'), integralBtn: document.getElementById('integralBtn'), analyzeBtn: document.getElementById('analyzeBtn'), };
+    const state = { chart: null, type: 'cartesian', history: [], showGrid: true, expressionCache: new Map(), plotTime: 0, pointCount: 0, analysisResults: null };
+    
+    // --- Math and Chart Configuration ---
+    math.import({ cot: x => 1 / math.tan(x), sec: x => 1 / math.cos(x), csc: x => 1 / math.sin(x) }, { override: true });
+    const ctx = UI.canvas.getContext('2d');
+    const chartConfig = {
+        plugins: [ChartZoom],
+        options: {
+            responsive: true, maintainAspectRatio: false,
+            interaction: { mode: 'nearest', intersect: false },
+            elements: { line: { tension: 0.1, borderWidth: 2.5 } },
+            plugins: {
+                legend: { labels: { color: '#e2e8f0', font: { size: 14, family: 'Inter' } } },
+                zoom: { pan: { enabled: true, mode: 'xy' }, zoom: { wheel: { enabled: true }, pinch: { enabled: true }, mode: 'xy' } },
+                tooltip: { enabled: true, backgroundColor: 'rgba(15, 23, 42, 0.85)', backdropFilter: 'blur(4px)', titleFont: { size: 14, weight: 'bold', family: 'Inter' }, bodyFont: { size: 12, family: 'Inter' }, padding: 12, cornerRadius: 8 },
+                crosshair: { line: { color: '#f59e0b', width: 1.5 }, sync: { enabled: false }, zoom: { enabled: false }, snap: { enabled: true } }
+            },
+            scales: {
+                x: { grid: { color: 'rgba(51, 65, 85, 0.5)' }, title: { display: true, text: 'x', color: '#94a3b8', font: { size: 14, family: 'Inter' } }, ticks: { color: '#cbd5e1', font: { family: 'Inter' } } },
+                y: { grid: { color: 'rgba(51, 65, 85, 0.5)' }, title: { display: true, text: 'y', color: '#94a3b8', font: { size: 14, family: 'Inter' } }, ticks: { color: '#cbd5e1', font: { family: 'Inter' } } }
+            }
+        }
+    };
+
+    // --- Core Application Logic ---
+    document.addEventListener('DOMContentLoaded', () => {
+        const applyStyles = (selector, styles) => document.querySelectorAll(selector).forEach(el => el.classList.add(...styles));
+        applyStyles('.plot-btn', ['w-full', 'flex', 'items-center', 'justify-center', 'px-8', 'py-3', 'bg-gradient-to-r', 'from-cyan-600', 'to-blue-600', 'hover:from-cyan-500', 'hover:to-blue-500', 'text-white', 'font-bold', 'rounded-lg', 'shadow-lg', 'hover:shadow-cyan-500/20', 'transform-gpu', 'hover:-translate-y-1', 'active:scale-95', 'transition-all', 'duration-200', 'disabled:opacity-50', 'disabled:cursor-not-allowed', 'disabled:transform-none', 'disabled:shadow-none']);
+        applyStyles('.control-btn', ['w-full', 'flex', 'items-center', 'justify-center', 'px-4', 'py-2', 'bg-slate-700/50', 'border', 'border-slate-600', 'rounded-lg', 'hover:bg-slate-600/80', 'hover:border-slate-500', 'hover:-translate-y-0.5', 'active:scale-95', 'transform-gpu', 'transition-all', 'duration-200', 'text-slate-300', 'hover:text-white', 'disabled:opacity-50', 'disabled:cursor-not-allowed', 'disabled:transform-none']);
+        applyStyles('.analysis-btn', ['flex-grow', 'px-4', 'py-2', 'bg-slate-700', 'border', 'border-slate-600', 'rounded-lg', 'hover:bg-slate-600', 'hover:-translate-y-0.5', 'active:scale-95', 'transform-gpu', 'transition-all', 'duration-200', 'text-slate-200', 'hover:text-white', 'font-semibold', 'disabled:opacity-50', 'disabled:cursor-not-allowed', 'disabled:transform-none']);
+        applyStyles('.control-input', ['w-full', 'bg-slate-900/70', 'border', 'border-slate-600', 'rounded-md', 'px-3', 'py-2', 'text-white', 'focus:outline-none', 'focus:ring-1', 'focus:ring-cyan-500', 'focus:border-cyan-500', 'transition-all']);
+        setTimeout(() => { UI.startupLoadingScreen.classList.add('opacity-0', 'pointer-events-none'); UI.appContainer.classList.remove('opacity-0'); document.querySelectorAll('[data-animate]').forEach((el, index) => { el.style.animationDelay = `${index * 100}ms`; el.classList.add('animate-in'); }); handleModeChange({ target: { value: 'cartesian' } }); drawEmptyState(); }, 500);
+    });
+    const debounce = (func, wait) => { let timeout; return (...args) => { clearTimeout(timeout); timeout = setTimeout(() => func(...args), wait); }; };
+    UI.plotBtn.addEventListener('click', debounce(generatePlot, 300)); UI.clearBtn.addEventListener('click', clearChart); UI.exportBtn.addEventListener('click', exportChart); UI.gridToggleBtn.addEventListener('click', toggleGrid); UI.helpBtn.addEventListener('click', () => { UI.helpModal.classList.remove('hidden', 'pointer-events-none'); setTimeout(() => { UI.helpModal.classList.remove('opacity-0'); UI.helpModal.querySelector('.main-container').classList.remove('scale-95'); }, 10); }); const closeModal = () => { UI.helpModal.classList.add('opacity-0'); UI.helpModal.querySelector('.main-container').classList.add('scale-95'); setTimeout(() => UI.helpModal.classList.add('hidden', 'pointer-events-none'), 300); }; UI.closeHelpBtn.addEventListener('click', closeModal); UI.helpModal.addEventListener('click', (e) => { if (e.target === UI.helpModal) closeModal(); }); UI.plotTypeRadios.forEach(radio => radio.addEventListener('change', handleModeChange)); UI.history.addEventListener('change', e => { if (e.target.value) { UI.equation.value = e.target.value; generatePlot(); } }); UI.derivativeBtn.addEventListener('click', addDerivativePlot); UI.integralBtn.addEventListener('click', addIntegralPlot); UI.analyzeBtn.addEventListener('click', analyzeFunction); document.addEventListener('keydown', e => { if (e.key === 'Enter' && document.activeElement === UI.equation) generatePlot(); if (e.key === 'Escape') { if (!UI.helpModal.classList.contains('hidden')) closeModal(); else clearChart(); } });
+    async function generatePlot() { try { toggleLoading(true, `Plotting...`); const startTime = performance.now(); const equation = UI.equation.value.trim(); if (!equation) throw new Error('Please enter a function.'); if (!state.history.includes(equation)) { state.history.unshift(equation); if (state.history.length > 10) state.history.pop(); updateHistoryDropdown(); } let success = false; let points = 0; if (state.type === 'cartesian') { success = await plotCartesian(equation); points = Math.floor((parseFloat(UI.xMax.value) - parseFloat(UI.xMin.value)) / parseFloat(UI.step.value)) + 1; } else { success = await plotPolar(equation); points = Math.floor((parseFloat(UI.xMax.value) - parseFloat(UI.xMin.value)) / parseFloat(UI.step.value)) + 1; } if (!success) throw new Error('Plotting failed.'); state.plotTime = (performance.now() - startTime).toFixed(2); state.pointCount = points; const memoryEstimate = (points * 2 * 8 / 1024 / 1024).toFixed(2); updateResults(`Plotted: ${state.type === 'cartesian' ? 'f(x)' : 'r(t)'} = ${equation}\n` + `Range: [${UI.xMin.value}, ${UI.xMax.value}] | Step: ${UI.step.value}\n` + `Points: ${points} | Time: ${state.plotTime}ms | Memory: ~${memoryEstimate} MB`); state.analysisResults = null; } catch (err) { updateResults(`Error: ${err.message}`, true); } finally { toggleLoading(false); } }
+    async function plotCartesian(equation) { const { xMin, xMax, step, error } = getCartesianRange(); if (error) throw new Error(error); const data = await generateCartesianData(equation, xMin, xMax, step); if (!data) return false; createChart({ type: 'line', data: { labels: data.labels, datasets: [{ label: `f(x) = ${equation}`, data: data.values, borderColor: '#06b6d4', backgroundColor: 'rgba(6, 182, 212, 0.1)', fill: true, pointRadius: 0 }], } }); return true; }
+    async function plotPolar(equation) { const { thetaMin, thetaMax, step, error } = getPolarRange(); if (error) throw new Error(error); const data = await generatePolarData(equation, thetaMin, thetaMax, step); if (!data) return false; createChart({ type: 'scatter', data: { datasets: [{ label: `r(t) = ${equation}`, data: data.points, borderColor: '#8b5cf6', backgroundColor: 'rgba(139, 92, 246, 0.1)', showLine: true, pointRadius: 0 }], }, options: { aspectRatio: 1, scales: { x: { title: { text: 'x' } }, y: { title: { text: 'y' } } } } }); return true; }
+    async function generateCartesianData(equation, xMin, xMax, step) { try { let compiled = state.expressionCache.get(equation); if (!compiled) { compiled = math.parse(equation).compile(); state.expressionCache.set(equation, compiled); } const labels = []; const values = []; for (let x = xMin; x <= xMax + 1e-10; x += step) { labels.push(parseFloat(x.toFixed(3))); const y = await compiled.evaluate({ x }); values.push(isFinite(y) && Math.abs(y) < 1e5 ? y : null); } return { labels, values }; } catch (err) { updateResults(`Invalid function: ${err.message}`, true); return null; } }
+    async function generatePolarData(equation, thetaMin, thetaMax, step) { try { let compiled = state.expressionCache.get(equation); if (!compiled) { compiled = math.parse(equation).compile(); state.expressionCache.set(equation, compiled); } const points = []; for (let t = thetaMin; t <= thetaMax + 1e-10; t += step) { const r = await compiled.evaluate({ t }); points.push(isFinite(r) ? { x: r * math.cos(t), y: r * math.sin(t) } : { x: NaN, y: NaN }); } return { points }; } catch (err) { updateResults(`Invalid polar function: Use 't' for theta. ${err.message}`, true); return null; } }
+    function addDerivativePlot() { if (!ensureCartesianPlot()) return; const baseEq = state.chart.data.datasets[0].label.replace('f(x) = ', ''); try { const derivEq = math.derivative(baseEq, 'x').toString(); addCartesianDataset(derivEq, `f'(x) = ${derivEq}`, '#f59e0b', true); } catch (err) { updateResults(`Error: Could not calculate derivative. ${err.message}`, true); } }
+    function addIntegralPlot() { if (!ensureCartesianPlot()) return; const baseEq = state.chart.data.datasets[0].label.replace('f(x) = ', ''); try { const integralEq = math.integrate(baseEq, 'x').toString(); addCartesianDataset(integralEq, `∫f(x)dx = ${integralEq}`, '#ec4899', true); } catch (err) { updateResults(`Error: Symbolic integral not supported. ${err.message}`, true); } }
+    function analyzeFunction() { if (!ensureCartesianPlot()) return; const equation = state.chart.data.datasets[0].label.replace('f(x) = ', ''); try { const node = math.parse(equation); const deriv1 = math.derivative(node, 'x'); const { xMin, xMax, step } = getCartesianRange(); const roots = findRoots(node, xMin, xMax, step); const extrema = findRoots(deriv1, xMin, xMax, step).map(x => { const y = node.compile().evaluate({ x }); const type = math.derivative(deriv1, 'x').compile().evaluate({ x }) > 0 ? 'Min' : 'Max'; return { x, y, type }; }); const area = calculateArea(node, xMin, xMax, step); state.analysisResults = { equation, roots, extrema, area, xMin, xMax, derivative: deriv1.toString(), }; addCriticalPoints(roots, extrema); let results = `Analysis for f(x) = ${equation}\n─────────────────────────\n`; results += `Derivative: f'(x) = ${deriv1.toString()}\n`; results += `Roots: ${roots.length ? roots.map(x => `x≈${x.toFixed(3)}`).join(', ') : 'None'}\n`; results += `Extrema: ${extrema.length ? extrema.map(e => `${e.type} @ x≈${e.x.toFixed(3)}`).join(', ') : 'None'}\n`; results += `Area [${xMin} to ${xMax}]: ${area.toFixed(3)}`; updateResults(results); } catch (err) { updateResults(`Analysis failed - ${err.message}`, true); } }
+    function findRoots(node, xMin, xMax, step) { const compiled = node.compile(); const roots = []; let prevY = compiled.evaluate({ x: xMin }); for (let x = xMin + step; x <= xMax; x += step) { const y = compiled.evaluate({ x }); if (isFinite(y) && isFinite(prevY) && y * prevY <= 0) { let a = x - step, b = x; for (let i = 0; i < 10; i++) { const c = (a + b) / 2; const fc = compiled.evaluate({ x: c }); if (Math.abs(fc) < 1e-6 || (b - a) < 1e-6) { roots.push(c); break; } if (compiled.evaluate({ x: a }) * fc <= 0) { b = c; } else { a = c; } } } prevY = y; } return roots.sort((a, b) => a - b); }
+    function calculateArea(node, xMin, xMax, step) { const compiled = node.compile(); let area = 0; for (let x = xMin; x < xMax; x += step) { const y1 = compiled.evaluate({ x }); const y2 = compiled.evaluate({ x: x + step }); if (isFinite(y1) && isFinite(y2)) { area += (y1 + y2) * step / 2; } } return area; }
+    function addCriticalPoints(roots, extrema) { const datasets = [ { label: 'Roots', data: roots.map(x => ({ x, y: 0 })), backgroundColor: '#f43f5e', pointRadius: 5, pointHoverRadius: 8, showLine: false }, { label: 'Extrema', data: extrema.map(e => ({ x: e.x, y: e.y })), backgroundColor: '#10b981', pointRadius: 5, pointHoverRadius: 8, showLine: false }, ]; datasets.forEach(ds => { if (ds.data.length) state.chart.data.datasets.push(ds); }); state.chart.update(); }
+    async function addCartesianDataset(equation, label, color, fill = true) { const { xMin, xMax, step } = getCartesianRange(); const data = await generateCartesianData(equation, xMin, xMax, step); if (data) { state.chart.data.datasets.push({ label, data: data.values, borderColor: color, backgroundColor: `${color}33`, fill, pointRadius: 0 }); state.chart.update(); updateResults(`Added: ${label}`); } }
+    function exportChart() { if (!state.chart) { updateResults('No chart to export.', true); return; } toggleLoading(true, 'Generating PNG...'); const exportCanvas = document.createElement('canvas'); const chartCanvas = UI.canvas; const exportCtx = exportCanvas.getContext('2d'); const padding = 150; exportCanvas.width = chartCanvas.width + padding * 2; exportCanvas.height = chartCanvas.height + padding * 2; exportCtx.fillStyle = '#0f172a'; exportCtx.fillRect(0, 0, exportCanvas.width, exportCanvas.height); exportCtx.drawImage(chartCanvas, padding, padding, chartCanvas.width, chartCanvas.height); exportCtx.fillStyle = '#1e293b'; exportCtx.strokeStyle = '#334155'; exportCtx.lineWidth = 1; exportCtx.roundRect(padding, 30, chartCanvas.width, padding - 40, 12); exportCtx.fill(); exportCtx.stroke(); exportCtx.fillStyle = '#e2e8f0'; exportCtx.font = 'bold 18px Inter'; exportCtx.textAlign = 'left'; const title = `${state.type === 'cartesian' ? 'f(x)' : 'r(t)'} = ${UI.equation.value || 'Unknown'}`; exportCtx.fillText(title, padding + 20, 60); exportCtx.font = '14px Inter'; let yOffset = 90; const datasets = state.chart.data.datasets; datasets.forEach((ds) => { if (!ds.hidden) { exportCtx.fillStyle = ds.borderColor; exportCtx.fillRect(padding + 20, yOffset - 10, 10, 10); exportCtx.fillStyle = '#e2e8f0'; exportCtx.fillText(ds.label, padding + 35, yOffset); yOffset += 20; } }); if (state.analysisResults && state.type === 'cartesian') { exportCtx.roundRect(padding, chartCanvas.height + padding, chartCanvas.width, padding - 40, 12); exportCtx.fillStyle = '#1e293b'; exportCtx.fill(); exportCtx.stroke(); exportCtx.fillStyle = '#e2e8f0'; exportCtx.font = 'bold 14px Inter'; exportCtx.fillText('Analysis', padding + 20, chartCanvas.height + padding + 25); exportCtx.font = '12px Inter'; yOffset = chartCanvas.height + padding + 45; const analysis = [ `Roots: ${state.analysisResults.roots.length ? state.analysisResults.roots.map(x => `x≈${x.toFixed(2)}`).join(', ') : 'None'}`, `Extrema: ${state.analysisResults.extrema.length ? state.analysisResults.extrema.map(e => `${e.type} @ x≈${e.x.toFixed(2)}`).join(', ') : 'None'}`, `Area [${state.analysisResults.xMin} to ${state.analysisResults.xMax}]: ${state.analysisResults.area.toFixed(3)}`, ]; analysis.forEach(line => { exportCtx.fillText(line, padding + 20, yOffset); yOffset += 18; }); } const link = document.createElement('a'); link.download = `graph_${new Date().toISOString().replace(/[:.]/g, '-')}.png`; link.href = exportCanvas.toDataURL('image/png'); link.click(); updateResults('Chart exported as PNG with details'); toggleLoading(false); }
+    function handleModeChange(event) { const newType = event.target.value; if (newType === state.type && state.chart) return; state.type = newType; const isCartesian = state.type === 'cartesian'; UI.analysisControls.style.opacity = isCartesian ? '1' : '0.5'; UI.rangeLegend.textContent = isCartesian ? 'Cartesian Range' : 'Polar Range (θ in radians)'; UI.rangeLabel1.textContent = isCartesian ? 'X-Min:' : 'θ Min:'; UI.rangeLabel2.textContent = isCartesian ? 'X-Max:' : 'θ Max:'; UI.xMin.value = isCartesian ? -10 : 0; UI.xMax.value = isCartesian ? 10 : 12.56; UI.step.value = isCartesian ? 0.05 : 0.01; UI.equation.placeholder = isCartesian ? 'f(x) = sin(x) * x' : 'r(t) = 2 * cos(4*t)'; UI.derivativeBtn.disabled = !isCartesian; UI.integralBtn.disabled = !isCartesian; UI.analyzeBtn.disabled = !isCartesian; if (state.chart) clearChart(); }
+    function createChart(config) { clearChart(true); UI.canvas.parentElement.classList.add('canvas-active'); state.chart = new Chart(ctx, { ...chartConfig, ...config, }); }
+    function clearChart(silent = false) { if (state.chart) { state.chart.destroy(); state.chart = null; } UI.canvas.parentElement.classList.remove('canvas-active'); if (!silent) updateResults('Chart cleared. Enter a new function to begin.', false); state.analysisResults = null; drawEmptyState(); }
+    function drawEmptyState() { ctx.clearRect(0, 0, UI.canvas.width, UI.canvas.height); ctx.save(); ctx.fillStyle = 'rgba(148, 163, 184, 0.5)'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.font = '20px Inter'; ctx.fillText('Enter a function and press Plot to begin.', UI.canvas.width / 2, UI.canvas.height / 2); ctx.restore(); }
+    function toggleLoading(isLoading, message = '') { UI.plotBtnText.classList.toggle('hidden', isLoading); UI.plotBtnSpinner.classList.toggle('hidden', !isLoading); UI.plotBtn.disabled = isLoading; if (isLoading) { UI.loadingText.textContent = message || 'Plotting...'; UI.loadingScreen.classList.remove('hidden', 'pointer-events-none'); setTimeout(() => { UI.loadingBox.classList.remove('scale-95', 'opacity-0'); }, 10); } else { UI.loadingBox.classList.add('scale-95', 'opacity-0'); setTimeout(() => { UI.loadingScreen.classList.add('hidden', 'pointer-events-none'); }, 300); } }
+    function updateResults(text, isError = false) { UI.results.style.opacity = 0; setTimeout(() => { UI.results.textContent = text; UI.results.classList.remove('text-emerald-400', 'text-red-400', 'text-slate-300'); if (isError) { UI.results.classList.add('text-red-400'); } else if (text.startsWith('Chart cleared')) { UI.results.classList.add('text-slate-400'); } else { UI.results.classList.add('text-emerald-400'); } UI.results.style.opacity = 1; }, 250); }
+    function updateHistoryDropdown() { UI.history.innerHTML = '<option value="">Recent Functions</option>'; state.history.forEach(eq => { const option = document.createElement('option'); option.value = eq; option.textContent = eq; UI.history.appendChild(option); }); }
+    function toggleGrid() { state.showGrid = !state.showGrid; if (state.chart) { state.chart.options.scales.x.grid.display = state.showGrid; state.chart.options.scales.y.grid.display = state.showGrid; state.chart.update(); } updateResults(`Grid ${state.showGrid ? 'enabled' : 'disabled'}`); }
+    function getRange() { const values = ['xMin', 'xMax', 'step'].map(id => { const value = document.getElementById(id).value; if (value === '') return NaN; return parseFloat(value); }); if (values.some(isNaN)) return { error: 'Range inputs must be valid numbers.' }; return { values, error: null }; }
+    function getCartesianRange() { const { values, error } = getRange(); if (error) return { error }; const [xMin, xMax, step] = values; if (xMin >= xMax) return { error: 'X-Min must be less than X-Max.' }; if (step <= 0) return { error: 'Step must be positive.' }; return { xMin, xMax, step }; }
+    function getPolarRange() { const { values, error } = getRange(); if (error) return { error }; const [thetaMin, thetaMax, step] = values; if (thetaMax <= thetaMin) return { error: 'θ Max must be greater than θ Min.' }; if (step <= 0) return { error: 'Step must be positive.' }; return { thetaMin, thetaMax, step }; }
+    function ensureCartesianPlot() { if (!state.chart || state.type !== 'cartesian') { updateResults('Analysis tools are only for Cartesian plots.', true); return false; } return true; }
+  </script>
+</body>
+</html>
